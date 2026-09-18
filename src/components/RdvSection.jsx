@@ -1,17 +1,13 @@
 import { useEffect, useState } from 'react'
-import { Plus, CalendarPlus, Check } from 'lucide-react'
+import { Plus, CalendarPlus, Check, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { downloadIcs } from '../lib/ics'
-import { Field, TextInput, Textarea, Select, PrimaryButton, SecondaryButton, Toast } from './ui'
-
-const LIEUX = [
-  { value: 'domicile', label: 'À domicile' },
-  { value: 'arcy', label: 'Arcy-sur-Cure' },
-  { value: 'massangis', label: 'Massangis' },
-]
+import { fetchLieux, resolveLieuSelection, computeLieuValue } from '../lib/lieux'
+import LieuField from './LieuField'
+import { Field, TextInput, Textarea, Select, TimeSelect, PrimaryButton, SecondaryButton, Toast } from './ui'
 
 function lieuLabel(v) {
-  return LIEUX.find((l) => l.value === v)?.label || v || '—'
+  return v || '—'
 }
 
 export default function RdvSection({ clientId, clientNom, dogs }) {
@@ -19,6 +15,7 @@ export default function RdvSection({ clientId, clientNom, dogs }) {
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
   const [showForm, setShowForm] = useState(false)
+  const [editingRdv, setEditingRdv] = useState(null)
   const [toast, setToast] = useState('')
 
   useEffect(() => {
@@ -62,6 +59,19 @@ export default function RdvSection({ clientId, clientNom, dogs }) {
     }
   }
 
+  async function handleDelete(rdv) {
+    const label = new Date(rdv.date_rdv).toLocaleDateString('fr-FR')
+    if (!window.confirm(`Supprimer le rendez-vous du ${label} ? Cette action est définitive.`)) return
+    try {
+      const { error } = await supabase.from('rdv').delete().eq('id', rdv.id)
+      if (error) throw error
+      notify('Rendez-vous supprimé.')
+      load()
+    } catch {
+      notify('Erreur lors de la suppression.')
+    }
+  }
+
   function exportToAgenda(rdv) {
     const dogNom = dogs.find((d) => d.id === rdv.dog_id)?.nom
     downloadIcs({
@@ -72,6 +82,8 @@ export default function RdvSection({ clientId, clientNom, dogs }) {
     })
     notify("Fichier ajouté aux téléchargements — ouvre-le pour l'ajouter à ton agenda.")
   }
+
+  const formOpen = showForm || !!editingRdv
 
   return (
     <div className="flex flex-col gap-4">
@@ -86,20 +98,25 @@ export default function RdvSection({ clientId, clientNom, dogs }) {
         </div>
       )}
 
-      {!showForm && (
+      {!formOpen && (
         <PrimaryButton type="button" onClick={() => setShowForm(true)} className="flex items-center justify-center gap-1.5">
           <Plus size={18} /> Ajouter un rendez-vous
         </PrimaryButton>
       )}
 
-      {showForm && (
-        <NewRdvForm
+      {formOpen && (
+        <RdvForm
           clientId={clientId}
           dogs={dogs}
-          onCancel={() => setShowForm(false)}
+          rdv={editingRdv}
+          onCancel={() => {
+            setShowForm(false)
+            setEditingRdv(null)
+          }}
           onSaved={() => {
             setShowForm(false)
-            notify('Rendez-vous ajouté.')
+            setEditingRdv(null)
+            notify(editingRdv ? 'Rendez-vous modifié.' : 'Rendez-vous ajouté.')
             load()
           }}
         />
@@ -119,7 +136,15 @@ export default function RdvSection({ clientId, clientNom, dogs }) {
           <p className="text-xs font-medium text-gray-400 mb-2">À venir</p>
           <div className="flex flex-col gap-2">
             {aVenir.map((r) => (
-              <RdvRow key={r.id} rdv={r} dogs={dogs} onToggleFait={toggleFait} onExport={exportToAgenda} />
+              <RdvRow
+                key={r.id}
+                rdv={r}
+                dogs={dogs}
+                onToggleFait={toggleFait}
+                onExport={exportToAgenda}
+                onEdit={() => setEditingRdv(r)}
+                onDelete={() => handleDelete(r)}
+              />
             ))}
           </div>
         </div>
@@ -130,7 +155,16 @@ export default function RdvSection({ clientId, clientNom, dogs }) {
           <p className="text-xs font-medium text-gray-400 mb-2 mt-2">Passés</p>
           <div className="flex flex-col gap-2">
             {passes.map((r) => (
-              <RdvRow key={r.id} rdv={r} dogs={dogs} onToggleFait={toggleFait} onExport={exportToAgenda} muted />
+              <RdvRow
+                key={r.id}
+                rdv={r}
+                dogs={dogs}
+                onToggleFait={toggleFait}
+                onExport={exportToAgenda}
+                onEdit={() => setEditingRdv(r)}
+                onDelete={() => handleDelete(r)}
+                muted
+              />
             ))}
           </div>
         </div>
@@ -145,7 +179,7 @@ export default function RdvSection({ clientId, clientNom, dogs }) {
   )
 }
 
-function RdvRow({ rdv, dogs, onToggleFait, onExport, muted }) {
+function RdvRow({ rdv, dogs, onToggleFait, onExport, onEdit, onDelete, muted }) {
   const dogNom = dogs.find((d) => d.id === rdv.dog_id)?.nom
   return (
     <div className={'bg-white rounded-xl p-4 flex items-center justify-between gap-2 ' + (muted ? 'opacity-60' : '')}>
@@ -166,6 +200,12 @@ function RdvRow({ rdv, dogs, onToggleFait, onExport, muted }) {
         >
           <CalendarPlus size={18} />
         </button>
+        <button onClick={onEdit} className="p-2 text-gray-400 hover:text-brand-dark" title="Modifier">
+          <Pencil size={16} />
+        </button>
+        <button onClick={onDelete} className="p-2 text-gray-400 hover:text-red-600" title="Supprimer">
+          <Trash2 size={16} />
+        </button>
         <button
           onClick={() => onToggleFait(rdv)}
           className={'p-2 rounded-full ' + (rdv.fait ? 'text-white bg-brand' : 'text-gray-300 border border-gray-300')}
@@ -178,32 +218,70 @@ function RdvRow({ rdv, dogs, onToggleFait, onExport, muted }) {
   )
 }
 
-function NewRdvForm({ clientId, dogs, onCancel, onSaved }) {
-  const [date, setDate] = useState('')
-  const [heure, setHeure] = useState('')
-  const [lieu, setLieu] = useState('domicile')
-  const [dogId, setDogId] = useState('')
-  const [notes, setNotes] = useState('')
+function RdvForm({ clientId, dogs, rdv, onCancel, onSaved }) {
+  const isEdit = !!rdv
+  const [date, setDate] = useState(rdv?.date_rdv || '')
+  const [heure, setHeure] = useState(rdv?.heure_rdv ? rdv.heure_rdv.slice(0, 5) : '')
+  const [lieuId, setLieuId] = useState('')
+  const [precision, setPrecision] = useState('')
+  const [unresolved, setUnresolved] = useState('')
+  const [lieuxOptions, setLieuxOptions] = useState([])
+  const [lieuxLoaded, setLieuxLoaded] = useState(false)
+  const [dogId, setDogId] = useState(rdv?.dog_id || '')
+  const [notes, setNotes] = useState(rdv?.notes || '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    fetchLieux()
+      .then((list) => {
+        setLieuxOptions(list)
+        if (rdv?.lieu) {
+          const resolved = resolveLieuSelection(rdv.lieu, list)
+          setLieuId(resolved.lieuId)
+          setPrecision(resolved.precision)
+          setUnresolved(resolved.unresolved)
+        } else if (list.length > 0) {
+          setLieuId((prev) => prev || list[0].id)
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLieuxLoaded(true))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function handleSubmit(e) {
     e.preventDefault()
     if (!date) return
     setSaving(true)
     setError('')
+    const lieuValue = computeLieuValue(lieuId, precision, lieuxOptions, unresolved)
     try {
-      const { error } = await supabase.from('rdv').insert([
-        {
-          client_id: clientId,
-          dog_id: dogId || null,
-          date_rdv: date,
-          heure_rdv: heure || null,
-          lieu,
-          notes,
-        },
-      ])
-      if (error) throw error
+      if (isEdit) {
+        const { error } = await supabase
+          .from('rdv')
+          .update({
+            dog_id: dogId || null,
+            date_rdv: date,
+            heure_rdv: heure || null,
+            lieu: lieuValue,
+            notes,
+          })
+          .eq('id', rdv.id)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('rdv').insert([
+          {
+            client_id: clientId,
+            dog_id: dogId || null,
+            date_rdv: date,
+            heure_rdv: heure || null,
+            lieu: lieuValue,
+            notes,
+          },
+        ])
+        if (error) throw error
+      }
       onSaved()
     } catch {
       setError("Erreur lors de l'enregistrement. Vérifie ta connexion.")
@@ -219,28 +297,28 @@ function NewRdvForm({ clientId, dogs, onCancel, onSaved }) {
           <TextInput type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
         </Field>
         <Field label="Heure">
-          <TextInput type="time" value={heure} onChange={(e) => setHeure(e.target.value)} />
+          <TimeSelect value={heure} onChange={setHeure} />
         </Field>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Lieu">
-          <Select value={lieu} onChange={(e) => setLieu(e.target.value)}>
-            {LIEUX.map((l) => (
-              <option key={l.value} value={l.value}>{l.label}</option>
+      <LieuField
+        lieuxOptions={lieuxOptions}
+        lieuxLoaded={lieuxLoaded}
+        lieuId={lieuId}
+        onLieuIdChange={setLieuId}
+        precision={precision}
+        onPrecisionChange={setPrecision}
+        unresolved={unresolved}
+      />
+      {dogs.length > 0 && (
+        <Field label="Chien concerné">
+          <Select value={dogId} onChange={(e) => setDogId(e.target.value)}>
+            <option value="">—</option>
+            {dogs.map((d) => (
+              <option key={d.id} value={d.id}>{d.nom}</option>
             ))}
           </Select>
         </Field>
-        {dogs.length > 0 && (
-          <Field label="Chien concerné">
-            <Select value={dogId} onChange={(e) => setDogId(e.target.value)}>
-              <option value="">—</option>
-              {dogs.map((d) => (
-                <option key={d.id} value={d.id}>{d.nom}</option>
-              ))}
-            </Select>
-          </Field>
-        )}
-      </div>
+      )}
       <Field label="Notes">
         <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
       </Field>
@@ -248,7 +326,7 @@ function NewRdvForm({ clientId, dogs, onCancel, onSaved }) {
       <div className="flex gap-2">
         <SecondaryButton type="button" onClick={onCancel} className="flex-1">Annuler</SecondaryButton>
         <PrimaryButton type="submit" disabled={saving} className="flex-1">
-          {saving ? 'Enregistrement...' : 'Ajouter'}
+          {saving ? 'Enregistrement...' : isEdit ? 'Enregistrer' : 'Ajouter'}
         </PrimaryButton>
       </div>
     </form>

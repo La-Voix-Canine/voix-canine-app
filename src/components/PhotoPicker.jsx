@@ -46,7 +46,6 @@ export default function PhotoPicker({ photoUrl, folder, onUploaded, size = 88 })
         ref={inputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         className="hidden"
         onChange={handleChange}
       />

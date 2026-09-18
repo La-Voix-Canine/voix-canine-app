@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react'
 import { ChevronDown, ChevronUp, Plus, PawPrint } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
-import { Field, TextInput, PrimaryButton, SecondaryButton } from './ui'
+import { Field, TextInput, Select, PrimaryButton, SecondaryButton } from './ui'
 import DogPanel from './DogPanel'
 
-export default function DogsSection({ clientId }) {
+export default function DogsSection({ clientId, initialOpenId }) {
   const [dogs, setDogs] = useState([])
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
-  const [openId, setOpenId] = useState(null)
+  const [openId, setOpenId] = useState(initialOpenId || null)
   const [showNewForm, setShowNewForm] = useState(false)
 
   useEffect(() => {
@@ -75,7 +75,13 @@ export default function DogsSection({ clientId }) {
                 </div>
                 <div className="text-left">
                   <p className="font-medium">{dog.nom}</p>
-                  {dog.race && <p className="text-xs text-gray-400">{dog.race}</p>}
+                  {(dog.race || dog.sexe) && (
+                    <p className="text-xs text-gray-400">
+                      {dog.race}
+                      {dog.race && dog.sexe ? ' · ' : ''}
+                      {dog.sexe === 'male' ? 'Mâle' : dog.sexe === 'femelle' ? 'Femelle' : ''}
+                    </p>
+                  )}
                 </div>
               </div>
               {open ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
@@ -111,6 +117,7 @@ export default function DogsSection({ clientId }) {
 function NewDogForm({ clientId, onCancel, onCreated }) {
   const [nom, setNom] = useState('')
   const [race, setRace] = useState('')
+  const [sexe, setSexe] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -122,7 +129,7 @@ function NewDogForm({ clientId, onCancel, onCreated }) {
     try {
       const { data, error } = await supabase
         .from('dogs')
-        .insert([{ client_id: clientId, nom, race }])
+        .insert([{ client_id: clientId, nom, race, sexe: sexe || null }])
         .select()
         .single()
       if (error) throw error
@@ -139,9 +146,18 @@ function NewDogForm({ clientId, onCancel, onCreated }) {
       <Field label="Nom du chien *">
         <TextInput value={nom} onChange={(e) => setNom(e.target.value)} required autoFocus />
       </Field>
-      <Field label="Race">
-        <TextInput value={race} onChange={(e) => setRace(e.target.value)} />
-      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Race">
+          <TextInput value={race} onChange={(e) => setRace(e.target.value)} />
+        </Field>
+        <Field label="Sexe">
+          <Select value={sexe} onChange={(e) => setSexe(e.target.value)}>
+            <option value="">—</option>
+            <option value="male">Mâle</option>
+            <option value="femelle">Femelle</option>
+          </Select>
+        </Field>
+      </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
       <div className="flex gap-2">
         <SecondaryButton type="button" onClick={onCancel} className="flex-1">Annuler</SecondaryButton>

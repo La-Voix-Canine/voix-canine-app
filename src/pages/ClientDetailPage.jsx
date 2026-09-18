@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { BackHeader, TabBar } from '../components/ui'
 import ClientInfoForm from '../components/ClientInfoForm'
@@ -18,12 +18,13 @@ export default function ClientDetailPage() {
   const { id } = useParams()
   const isNew = id === 'new'
   const navigate = useNavigate()
+  const location = useLocation()
 
   const [client, setClient] = useState(null)
   const [dogs, setDogs] = useState([])
   const [loading, setLoading] = useState(!isNew)
   const [loadError, setLoadError] = useState('')
-  const [tab, setTab] = useState('infos')
+  const [tab, setTab] = useState(location.state?.tab || 'infos')
 
   useEffect(() => {
     if (isNew) {
@@ -81,7 +82,9 @@ export default function ClientDetailPage() {
             onDeleted={() => navigate('/', { replace: true })}
           />
         )}
-        {!isNew && tab === 'chiens' && <DogsSection clientId={id} />}
+        {!isNew && tab === 'chiens' && (
+          <DogsSection clientId={id} initialOpenId={location.state?.openDogId} />
+        )}
         {!isNew && tab === 'rdv' && <RdvSection clientId={id} clientNom={client?.nom} dogs={dogs} />}
         {!isNew && tab === 'reglement' && <ReglementSection clientId={id} dogs={dogs} />}
       </main>

@@ -1,16 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, X, Check, Circle } from 'lucide-react'
+import { Plus, X, Check, Circle, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
-import { Field, TextInput, Textarea, Select, PrimaryButton, SecondaryButton, Toast } from './ui'
-
-const LIEUX = [
-  { value: 'domicile', label: 'À domicile' },
-  { value: 'arcy', label: 'Arcy-sur-Cure' },
-  { value: 'massangis', label: 'Massangis' },
-]
+import { fetchLieux, resolveLieuSelection, computeLieuValue } from '../lib/lieux'
+import LieuField from './LieuField'
+import { Field, TextInput, Textarea, PrimaryButton, SecondaryButton, Toast } from './ui'
 
 function lieuLabel(v) {
-  return LIEUX.find((l) => l.value === v)?.label || v || '—'
+  return v || '—'
 }
 
 export default function DogSeances({ dogId }) {
@@ -18,6 +14,7 @@ export default function DogSeances({ dogId }) {
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
   const [showForm, setShowForm] = useState(false)
+  const [editingSeance, setEditingSeance] = useState(null)
   const [toast, setToast] = useState('')
 
   useEffect(() => {
@@ -65,6 +62,21 @@ export default function DogSeances({ dogId }) {
     setTimeout(() => setToast(''), 2000)
   }
 
+  async function handleDelete(seance) {
+    const label = new Date(seance.date_seance).toLocaleDateString('fr-FR')
+    if (!window.confirm(`Supprimer la séance du ${label} ? Cette action est définitive.`)) return
+    try {
+      const { error } = await supabase.from('seances').delete().eq('id', seance.id)
+      if (error) throw error
+      notify('Séance supprimée.')
+      load()
+    } catch {
+      notify('Erreur lors de la suppression.')
+    }
+  }
+
+  const formOpen = showForm || !!editingSeance
+
   return (
     <div className="flex flex-col gap-4">
       {resume.length > 0 && (
@@ -97,19 +109,24 @@ export default function DogSeances({ dogId }) {
         </div>
       )}
 
-      {!showForm && (
+      {!formOpen && (
         <PrimaryButton type="button" onClick={() => setShowForm(true)} className="flex items-center justify-center gap-1.5">
           <Plus size={18} /> Ajouter une séance
         </PrimaryButton>
       )}
 
-      {showForm && (
-        <NewSeanceForm
+      {formOpen && (
+        <SeanceForm
           dogId={dogId}
-          onCancel={() => setShowForm(false)}
+          seance={editingSeance}
+          onCancel={() => {
+            setShowForm(false)
+            setEditingSeance(null)
+          }}
           onSaved={() => {
             setShowForm(false)
-            notify('Séance enregistrée.')
+            setEditingSeance(null)
+            notify(editingSeance ? 'Séance modifiée.' : 'Séance enregistrée.')
             load()
           }}
         />
@@ -130,7 +147,15 @@ export default function DogSeances({ dogId }) {
           <div key={s.id} className="bg-white rounded-xl p-4">
             <div className="flex items-center justify-between mb-1">
               <p className="font-medium text-sm">{new Date(s.date_seance).toLocaleDateString('fr-FR')}</p>
-              <span className="text-xs text-gray-400">{lieuLabel(s.lieu)}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400">{lieuLabel(s.lieu)}</span>
+                <button onClick={() => setEditingSeance(s)} className="p-1 text-gray-400 hover:text-brand-dark" title="Modifier">
+                  <Pencil size={15} />
+                </button>
+                <button onClick={() => handleDelete(s)} className="p-1 text-gray-400 hover:text-red-600" title="Supprimer">
+                  <Trash2 size={15} />
+                </button>
+              </div>
             </div>
             {s.notes && <p className="text-sm text-gray-600 mb-2">{s.notes}</p>}
             {(s.exercices || []).length > 0 && (
@@ -159,13 +184,38 @@ export default function DogSeances({ dogId }) {
   )
 }
 
-function NewSeanceForm({ dogId, onCancel, onSaved }) {
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
-  const [lieu, setLieu] = useState('domicile')
-  const [notes, setNotes] = useState('')
-  const [exercices, setExercices] = useState([{ nom: '', maitrise: false }])
+function SeanceForm({ dogId, seance, onCancel, onSaved }) {
+  const isEdit = !!seance
+  const [date, setDate] = useState(seance?.date_seance || new Date().toISOString().slice(0, 10))
+  const [lieuId, setLieuId] = useState('')
+  const [precision, setPrecision] = useState('')
+  const [unresolved, setUnresolved] = useState('')
+  const [lieuxOptions, setLieuxOptions] = useState([])
+  const [lieuxLoaded, setLieuxLoaded] = useState(false)
+  const [notes, setNotes] = useState(seance?.notes || '')
+  const [exercices, setExercices] = useState(
+    seance?.exercices?.length ? seance.exercices : [{ nom: '', maitrise: false }]
+  )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    fetchLieux()
+      .then((list) => {
+        setLieuxOptions(list)
+        if (seance?.lieu) {
+          const resolved = resolveLieuSelection(seance.lieu, list)
+          setLieuId(resolved.lieuId)
+          setPrecision(resolved.precision)
+          setUnresolved(resolved.unresolved)
+        } else if (list.length > 0) {
+          setLieuId((prev) => prev || list[0].id)
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLieuxLoaded(true))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function updateExercice(i, patch) {
     setExercices((list) => list.map((ex, idx) => (idx === i ? { ...ex, ...patch } : ex)))
@@ -180,13 +230,22 @@ function NewSeanceForm({ dogId, onCancel, onSaved }) {
   async function handleSubmit(e) {
     e.preventDefault()
     const cleaned = exercices.filter((ex) => ex.nom.trim())
+    const lieuValue = computeLieuValue(lieuId, precision, lieuxOptions, unresolved)
     setSaving(true)
     setError('')
     try {
-      const { error } = await supabase.from('seances').insert([
-        { dog_id: dogId, date_seance: date, lieu, notes, exercices: cleaned },
-      ])
-      if (error) throw error
+      if (isEdit) {
+        const { error } = await supabase
+          .from('seances')
+          .update({ date_seance: date, lieu: lieuValue, notes, exercices: cleaned })
+          .eq('id', seance.id)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('seances').insert([
+          { dog_id: dogId, date_seance: date, lieu: lieuValue, notes, exercices: cleaned },
+        ])
+        if (error) throw error
+      }
       onSaved()
     } catch {
       setError("Erreur lors de l'enregistrement. Vérifie ta connexion.")
@@ -201,14 +260,17 @@ function NewSeanceForm({ dogId, onCancel, onSaved }) {
         <Field label="Date">
           <TextInput type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
         </Field>
-        <Field label="Lieu">
-          <Select value={lieu} onChange={(e) => setLieu(e.target.value)}>
-            {LIEUX.map((l) => (
-              <option key={l.value} value={l.value}>{l.label}</option>
-            ))}
-          </Select>
-        </Field>
       </div>
+
+      <LieuField
+        lieuxOptions={lieuxOptions}
+        lieuxLoaded={lieuxLoaded}
+        lieuId={lieuId}
+        onLieuIdChange={setLieuId}
+        precision={precision}
+        onPrecisionChange={setPrecision}
+        unresolved={unresolved}
+      />
 
       <Field label="Notes / observations">
         <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
@@ -262,7 +324,7 @@ function NewSeanceForm({ dogId, onCancel, onSaved }) {
           Annuler
         </SecondaryButton>
         <PrimaryButton type="submit" disabled={saving} className="flex-1">
-          {saving ? 'Enregistrement...' : 'Enregistrer'}
+          {saving ? 'Enregistrement...' : isEdit ? 'Enregistrer' : 'Enregistrer'}
         </PrimaryButton>
       </div>
     </form>

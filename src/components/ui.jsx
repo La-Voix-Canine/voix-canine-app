@@ -82,6 +82,41 @@ export function Select({ children, ...props }) {
   )
 }
 
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
+const MINUTES = ['00', '15', '30', '45']
+
+// Sélecteur d'heure "maison" (deux menus déroulants) — évite le sélecteur natif
+// du téléphone, dont le bouton de validation peut être coupé sur certains écrans.
+export function TimeSelect({ value, onChange, className = '' }) {
+  const [h, m] = (value || '').split(':')
+
+  function update(nextH, nextM) {
+    if (!nextH && !nextM) {
+      onChange('')
+      return
+    }
+    onChange(`${nextH || '00'}:${nextM || '00'}`)
+  }
+
+  return (
+    <div className={'flex items-center gap-2 ' + className}>
+      <Select value={h || ''} onChange={(e) => update(e.target.value, m)} className="flex-1">
+        <option value="">Heure</option>
+        {HOURS.map((v) => (
+          <option key={v} value={v}>{v}</option>
+        ))}
+      </Select>
+      <span className="text-gray-400">:</span>
+      <Select value={m || ''} onChange={(e) => update(h, e.target.value)} className="flex-1">
+        <option value="">Min</option>
+        {MINUTES.map((v) => (
+          <option key={v} value={v}>{v}</option>
+        ))}
+      </Select>
+    </div>
+  )
+}
+
 export function Toggle({ checked, onChange, label }) {
   return (
     <button

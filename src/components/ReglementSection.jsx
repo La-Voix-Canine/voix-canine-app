@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, Minus } from 'lucide-react'
+import { Plus, Minus, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { Field, TextInput, Select, PrimaryButton, SecondaryButton, Toast } from './ui'
 
@@ -8,6 +8,7 @@ export default function ReglementSection({ clientId, dogs }) {
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
   const [showForm, setShowForm] = useState(false)
+  const [editingForfait, setEditingForfait] = useState(null)
   const [toast, setToast] = useState('')
 
   useEffect(() => {
@@ -37,22 +38,41 @@ export default function ReglementSection({ clientId, dogs }) {
     setTimeout(() => setToast(''), 2000)
   }
 
+  async function handleDelete(forfait) {
+    if (!window.confirm('Supprimer ce règlement ? Cette action est définitive.')) return
+    try {
+      const { error } = await supabase.from('forfaits').delete().eq('id', forfait.id)
+      if (error) throw error
+      notify('Règlement supprimé.')
+      load()
+    } catch {
+      notify('Erreur lors de la suppression.')
+    }
+  }
+
+  const formOpen = showForm || !!editingForfait
+
   return (
     <div className="flex flex-col gap-4">
-      {!showForm && (
+      {!formOpen && (
         <PrimaryButton type="button" onClick={() => setShowForm(true)} className="flex items-center justify-center gap-1.5">
           <Plus size={18} /> Nouveau règlement
         </PrimaryButton>
       )}
 
-      {showForm && (
-        <NewForfaitForm
+      {formOpen && (
+        <ForfaitForm
           clientId={clientId}
           dogs={dogs}
-          onCancel={() => setShowForm(false)}
+          forfait={editingForfait}
+          onCancel={() => {
+            setShowForm(false)
+            setEditingForfait(null)
+          }}
           onSaved={() => {
             setShowForm(false)
-            notify('Règlement enregistré.')
+            setEditingForfait(null)
+            notify(editingForfait ? 'Règlement modifié.' : 'Règlement enregistré.')
             load()
           }}
         />
@@ -70,7 +90,14 @@ export default function ReglementSection({ clientId, dogs }) {
       )}
 
       {forfaits.map((f) => (
-        <ForfaitCard key={f.id} forfait={f} dogs={dogs} onChanged={load} />
+        <ForfaitCard
+          key={f.id}
+          forfait={f}
+          dogs={dogs}
+          onChanged={load}
+          onEdit={() => setEditingForfait(f)}
+          onDelete={() => handleDelete(f)}
+        />
       ))}
 
       <Toast message={toast} />
@@ -78,7 +105,7 @@ export default function ReglementSection({ clientId, dogs }) {
   )
 }
 
-function ForfaitCard({ forfait, dogs, onChanged }) {
+function ForfaitCard({ forfait, dogs, onChanged, onEdit, onDelete }) {
   const dogNom = dogs.find((d) => d.id === forfait.dog_id)?.nom
   const isForfait = forfait.type === 'forfait'
   const paye = (Number(forfait.montant_paiement_1) || 0) + (Number(forfait.montant_paiement_2) || 0)
@@ -105,14 +132,22 @@ function ForfaitCard({ forfait, dogs, onChanged }) {
           </p>
           <p className="text-xs text-gray-400">{Number(forfait.montant_total || 0).toFixed(2)} €</p>
         </div>
-        <span
-          className={
-            'text-xs font-medium px-2.5 py-1 rounded-full ' +
-            (solde ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700')
-          }
-        >
-          {solde ? 'Soldé' : forfait.montant_paiement_2 != null || paye > 0 ? 'En attente (partiel)' : 'En attente'}
-        </span>
+        <div className="flex items-center gap-2 shrink-0">
+          <span
+            className={
+              'text-xs font-medium px-2.5 py-1 rounded-full ' +
+              (solde ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700')
+            }
+          >
+            {solde ? 'Soldé' : forfait.montant_paiement_2 != null || paye > 0 ? 'En attente (partiel)' : 'En attente'}
+          </span>
+          <button onClick={onEdit} className="p-1 text-gray-400 hover:text-brand-dark" title="Modifier">
+            <Pencil size={15} />
+          </button>
+          <button onClick={onDelete} className="p-1 text-gray-400 hover:text-red-600" title="Supprimer">
+            <Trash2 size={15} />
+          </button>
+        </div>
       </div>
 
       {isForfait && (
@@ -175,21 +210,23 @@ function ForfaitCard({ forfait, dogs, onChanged }) {
   )
 }
 
-function NewForfaitForm({ clientId, dogs, onCancel, onSaved }) {
-  const [type, setType] = useState('forfait')
-  const [nbSeancesTotal, setNbSeancesTotal] = useState(10)
-  const [montantTotal, setMontantTotal] = useState(350)
-  const [dogId, setDogId] = useState('')
-  const [modePaiement, setModePaiement] = useState('1fois')
-  const [montant1, setMontant1] = useState('')
-  const [date1, setDate1] = useState(() => new Date().toISOString().slice(0, 10))
-  const [montant2, setMontant2] = useState('')
-  const [date2, setDate2] = useState('')
+function ForfaitForm({ clientId, dogs, forfait, onCancel, onSaved }) {
+  const isEdit = !!forfait
+  const [type, setType] = useState(forfait?.type || 'forfait')
+  const [nbSeancesTotal, setNbSeancesTotal] = useState(forfait?.nb_seances_total ?? 10)
+  const [montantTotal, setMontantTotal] = useState(forfait?.montant_total ?? 350)
+  const [dogId, setDogId] = useState(forfait?.dog_id || '')
+  const [modePaiement, setModePaiement] = useState(forfait?.mode_paiement || '1fois')
+  const [montant1, setMontant1] = useState(forfait?.montant_paiement_1 ?? '')
+  const [date1, setDate1] = useState(forfait?.date_paiement_1 || (() => new Date().toISOString().slice(0, 10))())
+  const [montant2, setMontant2] = useState(forfait?.montant_paiement_2 ?? '')
+  const [date2, setDate2] = useState(forfait?.date_paiement_2 || '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   function handleTypeChange(v) {
     setType(v)
+    if (isEdit) return // en édition, on ne réinitialise pas les montants déjà saisis
     if (v === 'forfait') {
       setNbSeancesTotal(10)
       setMontantTotal(350)
@@ -205,22 +242,27 @@ function NewForfaitForm({ clientId, dogs, onCancel, onSaved }) {
     setError('')
 
     const payload = {
-      client_id: clientId,
       dog_id: dogId || null,
       type,
       nb_seances_total: type === 'forfait' ? nbSeancesTotal : 999,
-      nb_seances_faites: 0,
       montant_total: montantTotal,
       mode_paiement: modePaiement,
-      montant_paiement_1: montant1 ? Number(montant1) : (modePaiement === '1fois' ? montantTotal : null),
+      montant_paiement_1: montant1 !== '' ? Number(montant1) : (modePaiement === '1fois' ? montantTotal : null),
       date_paiement_1: date1 || null,
-      montant_paiement_2: modePaiement === '2fois' && montant2 ? Number(montant2) : null,
+      montant_paiement_2: modePaiement === '2fois' && montant2 !== '' ? Number(montant2) : null,
       date_paiement_2: modePaiement === '2fois' ? date2 || null : null,
     }
 
     try {
-      const { error } = await supabase.from('forfaits').insert([payload])
-      if (error) throw error
+      if (isEdit) {
+        const { error } = await supabase.from('forfaits').update(payload).eq('id', forfait.id)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('forfaits').insert([
+          { ...payload, client_id: clientId, nb_seances_faites: 0 },
+        ])
+        if (error) throw error
+      }
       onSaved()
     } catch {
       setError("Erreur lors de l'enregistrement. Vérifie ta connexion.")
@@ -267,7 +309,7 @@ function NewForfaitForm({ clientId, dogs, onCancel, onSaved }) {
             <TextInput
               type="number"
               min="1"
-              value={nbSeancesTotal}
+              value={nbSeancesTotal ?? ''}
               onChange={(e) => setNbSeancesTotal(Number(e.target.value))}
             />
           </Field>
@@ -322,7 +364,7 @@ function NewForfaitForm({ clientId, dogs, onCancel, onSaved }) {
       <div className="flex gap-2">
         <SecondaryButton type="button" onClick={onCancel} className="flex-1">Annuler</SecondaryButton>
         <PrimaryButton type="submit" disabled={saving} className="flex-1">
-          {saving ? 'Enregistrement...' : 'Enregistrer'}
+          {saving ? 'Enregistrement...' : isEdit ? 'Enregistrer' : 'Enregistrer'}
         </PrimaryButton>
       </div>
     </form>

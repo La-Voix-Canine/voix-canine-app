@@ -37,6 +37,7 @@ create table if not exists dogs (
 
   nom text not null,
   race text,
+  sexe text,                 -- 'male' | 'femelle'
   date_naissance date,
   age_arrivee_famille text,
 
@@ -78,7 +79,7 @@ create table if not exists seances (
   dog_id uuid not null references dogs(id) on delete cascade,
 
   date_seance date not null default current_date,
-  lieu text,                 -- 'domicile' | 'arcy' | 'massangis'
+  lieu text,                 -- nom du lieu choisi (texte libre, voir table "lieux")
   notes text,
   exercices jsonb not null default '[]'::jsonb  -- [{ "nom": "...", "maitrise": true|false }]
 );
@@ -94,9 +95,23 @@ create table if not exists rdv (
 
   date_rdv date not null,
   heure_rdv time,
-  lieu text,                 -- 'domicile' | 'arcy' | 'massangis'
+  lieu text,                 -- nom du lieu choisi (texte libre, voir table "lieux")
   notes text,
   fait boolean not null default false
+);
+
+-- ------------------------------------------------------------
+-- LIEUX (personnalisés par utilisateur)
+-- Chaque utilisateur gère sa propre liste de lieux de séance / rendez-vous
+-- (ex. "À domicile", le nom de son centre...), modifiable dans Paramètres.
+-- ------------------------------------------------------------
+create table if not exists lieux (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  owner_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+
+  nom text not null,
+  necessite_precision boolean not null default false  -- ex. "En ville" : demande une précision (ville) à chaque utilisation
 );
 
 -- ------------------------------------------------------------
@@ -133,6 +148,7 @@ alter table dogs enable row level security;
 alter table seances enable row level security;
 alter table rdv enable row level security;
 alter table forfaits enable row level security;
+alter table lieux enable row level security;
 
 create policy "clients: owner only" on clients
   for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
@@ -171,6 +187,9 @@ create policy "forfaits: via client owner" on forfaits
     exists (select 1 from clients c where c.id = forfaits.client_id and c.owner_id = auth.uid())
   );
 
+create policy "lieux: owner only" on lieux
+  for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+
 -- ------------------------------------------------------------
 -- INDEX (recherche rapide)
 -- ------------------------------------------------------------
@@ -179,6 +198,7 @@ create index if not exists idx_dogs_client on dogs(client_id);
 create index if not exists idx_seances_dog on seances(dog_id);
 create index if not exists idx_rdv_client on rdv(client_id);
 create index if not exists idx_forfaits_client on forfaits(client_id);
+create index if not exists idx_lieux_owner on lieux(owner_id);
 
 -- ------------------------------------------------------------
 -- STOCKAGE DES PHOTOS

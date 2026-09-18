@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Plus, PawPrint, LogOut, Phone } from 'lucide-react'
+import { Search, Plus, PawPrint, LogOut, Phone, Settings } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
 
@@ -68,13 +68,22 @@ export default function ClientsListPage() {
             <h1 className="text-lg font-semibold">La Voix Canine</h1>
             <p className="text-xs text-white/70">{clients.length} client{clients.length > 1 ? 's' : ''}</p>
           </div>
-          <button
-            onClick={signOut}
-            className="text-white/80 hover:text-white p-2"
-            aria-label="Se déconnecter"
-          >
-            <LogOut size={20} />
-          </button>
+          <div className="flex items-center">
+            <button
+              onClick={() => navigate('/parametres')}
+              className="text-white/80 hover:text-white p-2"
+              aria-label="Paramètres"
+            >
+              <Settings size={20} />
+            </button>
+            <button
+              onClick={signOut}
+              className="text-white/80 hover:text-white p-2"
+              aria-label="Se déconnecter"
+            >
+              <LogOut size={20} />
+            </button>
+          </div>
         </div>
 
         <div className="relative">
@@ -108,29 +117,34 @@ export default function ClientsListPage() {
 
         <ul className="flex flex-col gap-2">
           {filtered.map((client) => (
-            <li key={client.id}>
+            <li key={client.id} className="bg-white rounded-xl shadow-sm overflow-hidden">
               <button
                 onClick={() => navigate(`/clients/${client.id}`)}
-                className="w-full text-left bg-white rounded-xl p-4 shadow-sm flex items-center justify-between active:scale-[0.99] transition"
+                className="w-full text-left p-4 active:scale-[0.99] transition"
               >
-                <div>
-                  <p className="font-medium">{client.nom}</p>
-                  <div className="flex items-center gap-3 text-sm text-gray-500 mt-0.5">
-                    {(dogsByClient[client.id] || []).length > 0 && (
-                      <span className="flex items-center gap-1">
-                        <PawPrint size={14} />
-                        {(dogsByClient[client.id] || []).map((d) => d.nom).join(', ')}
-                      </span>
-                    )}
-                    {client.telephone && (
-                      <span className="flex items-center gap-1">
-                        <Phone size={14} />
-                        {client.telephone}
-                      </span>
-                    )}
-                  </div>
-                </div>
+                <p className="font-medium">{client.nom}</p>
+                {client.telephone && (
+                  <span className="flex items-center gap-1 text-sm text-gray-500 mt-0.5">
+                    <Phone size={14} />
+                    {client.telephone}
+                  </span>
+                )}
               </button>
+              {(dogsByClient[client.id] || []).length > 0 && (
+                <div className="flex flex-wrap gap-1.5 px-4 pb-3">
+                  {(dogsByClient[client.id] || []).map((dog) => (
+                    <button
+                      key={dog.id}
+                      onClick={() =>
+                        navigate(`/clients/${client.id}`, { state: { tab: 'chiens', openDogId: dog.id } })
+                      }
+                      className="flex items-center gap-1 text-xs bg-gray-50 border border-gray-200 rounded-full px-2.5 py-1 text-gray-600 active:scale-95 transition"
+                    >
+                      <PawPrint size={12} /> {dog.nom}
+                    </button>
+                  ))}
+                </div>
+              )}
             </li>
           ))}
         </ul>

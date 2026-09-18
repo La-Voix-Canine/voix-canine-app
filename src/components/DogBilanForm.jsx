@@ -34,6 +34,7 @@ export default function DogBilanForm({ dog, onSaved, onDeleted }) {
         .update({
           nom: form.nom,
           race: form.race,
+          sexe: form.sexe || null,
           date_naissance: form.date_naissance || null,
           age_arrivee_famille: form.age_arrivee_famille,
           type_logement: form.type_logement,
@@ -89,14 +90,22 @@ export default function DogBilanForm({ dog, onSaved, onDeleted }) {
         <Field label="Race">
           <TextInput value={form.race || ''} onChange={(e) => set('race', e.target.value)} />
         </Field>
-        <Field label="Date de naissance">
-          <TextInput
-            type="date"
-            value={form.date_naissance || ''}
-            onChange={(e) => set('date_naissance', e.target.value)}
-          />
+        <Field label="Sexe">
+          <Select value={form.sexe || ''} onChange={(e) => set('sexe', e.target.value)}>
+            <option value="">—</option>
+            <option value="male">Mâle</option>
+            <option value="femelle">Femelle</option>
+          </Select>
         </Field>
       </div>
+
+      <Field label="Date de naissance">
+        <TextInput
+          type="date"
+          value={form.date_naissance || ''}
+          onChange={(e) => set('date_naissance', e.target.value)}
+        />
+      </Field>
 
       <Field label="Depuis quel âge il est avec sa famille" hint="ex : depuis chiot (8 semaines), depuis 2 ans...">
         <TextInput
