@@ -47,7 +47,7 @@ export default function DogSeances({ dogId }) {
       for (const ex of s.exercices || []) {
         if (!ex.nom) continue
         if (!byName.has(ex.nom)) {
-          byName.set(ex.nom, { nom: ex.nom, maitrise: !!ex.maitrise, date: s.date_seance })
+          byName.set(ex.nom, { nom: ex.nom, maitrise: !!ex.maitrise, date: s.date_seance, seanceId: s.id })
         }
       }
     }
@@ -60,6 +60,25 @@ export default function DogSeances({ dogId }) {
   function notify(msg) {
     setToast(msg)
     setTimeout(() => setToast(''), 2000)
+  }
+
+  // Permet de valider/dévalider un exercice directement depuis la vue d'ensemble,
+  // sans rouvrir la séance : on met à jour la séance la plus récente qui le contient.
+  async function toggleResumeExercice(item) {
+    const seance = seances.find((s) => s.id === item.seanceId)
+    if (!seance) return
+    const updatedExercices = (seance.exercices || []).map((ex) =>
+      ex.nom === item.nom ? { ...ex, maitrise: !ex.maitrise } : ex
+    )
+    const previous = seances
+    setSeances((list) => list.map((s) => (s.id === seance.id ? { ...s, exercices: updatedExercices } : s)))
+    try {
+      const { error } = await supabase.from('seances').update({ exercices: updatedExercices }).eq('id', seance.id)
+      if (error) throw error
+    } catch {
+      setSeances(previous)
+      notify('Erreur lors de la mise à jour.')
+    }
   }
 
   async function handleDelete(seance) {
@@ -84,12 +103,18 @@ export default function DogSeances({ dogId }) {
           <h2 className="font-medium mb-2">Vue d'ensemble des exercices</h2>
           {aTravailler.length > 0 && (
             <div className="mb-3">
-              <p className="text-xs font-medium text-accent mb-1.5">À retravailler</p>
+              <p className="text-xs font-medium text-accent mb-1.5">À travailler</p>
               <div className="flex flex-wrap gap-1.5">
                 {aTravailler.map((r) => (
-                  <span key={r.nom} className="flex items-center gap-1 text-sm bg-orange-50 text-orange-700 border border-orange-100 rounded-full px-2.5 py-1">
+                  <button
+                    type="button"
+                    key={r.nom}
+                    onClick={() => toggleResumeExercice(r)}
+                    title="Appuyer pour marquer comme maîtrisé"
+                    className="flex items-center gap-1 text-sm bg-orange-50 text-orange-700 border border-orange-100 rounded-full px-2.5 py-1 active:scale-95 transition"
+                  >
                     <Circle size={12} /> {r.nom}
-                  </span>
+                  </button>
                 ))}
               </div>
             </div>
@@ -99,9 +124,15 @@ export default function DogSeances({ dogId }) {
               <p className="text-xs font-medium text-brand mb-1.5">Maîtrisés</p>
               <div className="flex flex-wrap gap-1.5">
                 {maitrises.map((r) => (
-                  <span key={r.nom} className="flex items-center gap-1 text-sm bg-green-50 text-green-700 border border-green-100 rounded-full px-2.5 py-1">
+                  <button
+                    type="button"
+                    key={r.nom}
+                    onClick={() => toggleResumeExercice(r)}
+                    title="Appuyer pour remettre à travailler"
+                    className="flex items-center gap-1 text-sm bg-green-50 text-green-700 border border-green-100 rounded-full px-2.5 py-1 active:scale-95 transition"
+                  >
                     <Check size={12} /> {r.nom}
-                  </span>
+                  </button>
                 ))}
               </div>
             </div>

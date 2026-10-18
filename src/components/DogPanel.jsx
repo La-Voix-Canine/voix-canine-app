@@ -6,8 +6,8 @@ import DogSeances from './DogSeances'
 
 const TABS = [
   { value: 'bilan', label: 'Bilan' },
-  { value: 'education', label: 'Éducation de base' },
-  { value: 'seances', label: 'Séances' },
+  { value: 'education', label: 'Éducation - Dressage' },
+  { value: 'seances', label: 'À travailler' },
 ]
 
 export default function DogPanel({ dog, onDogUpdated, onDogDeleted }) {

@@ -38,6 +38,7 @@ create table if not exists dogs (
   nom text not null,
   race text,
   sexe text,                 -- 'male' | 'femelle'
+  castre text,                -- 'oui' | 'non'
   date_naissance date,
   age_arrivee_famille text,
 
@@ -62,12 +63,16 @@ create table if not exists dogs (
   -- Éducation de base (liste fixe)
   eb_marche_au_pied boolean not null default false,
   eb_changement_direction boolean not null default false,
+  eb_stop boolean not null default false,
   eb_pas_bouge boolean not null default false,
   eb_assis boolean not null default false,
   eb_couche boolean not null default false,
   eb_absence boolean not null default false,
   eb_rappel_sans_distraction boolean not null default false,
-  eb_rappel_avec_distraction boolean not null default false
+  eb_rappel_avec_distraction boolean not null default false,
+
+  -- Exercices de dressage propres à ce chien (ajoutés librement par l'éducateur)
+  dressage_exercices jsonb not null default '[]'::jsonb  -- [{ "nom": "...", "maitrise": true|false }]
 );
 
 -- ------------------------------------------------------------
@@ -128,12 +133,14 @@ create table if not exists forfaits (
   nb_seances_faites int not null default 0,
 
   montant_total numeric(10,2),
-  mode_paiement text not null default '1fois',  -- '1fois' | '2fois'
+  mode_paiement text not null default '1fois',  -- '1fois' | '2fois' | '3fois'
 
   montant_paiement_1 numeric(10,2),
   date_paiement_1 date,
   montant_paiement_2 numeric(10,2),
   date_paiement_2 date,
+  montant_paiement_3 numeric(10,2),
+  date_paiement_3 date,
 
   statut text not null default 'en_attente',  -- 'solde' | 'en_attente'
   actif boolean not null default true

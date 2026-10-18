@@ -57,6 +57,7 @@ update rdv set lieu = 'Massangis'      where lieu = 'massangis';
 -- 4. Sexe du chien (mâle / femelle)
 -- ------------------------------------------------------------
 alter table dogs add column if not exists sexe text;
+alter table dogs add column if not exists eb_stop boolean not null default false;
 
 -- ------------------------------------------------------------
 -- Terminé. Dans l'appli, va dans Paramètres pour voir/modifier tes lieux.

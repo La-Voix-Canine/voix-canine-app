@@ -108,7 +108,10 @@ export default function ReglementSection({ clientId, dogs }) {
 function ForfaitCard({ forfait, dogs, onChanged, onEdit, onDelete }) {
   const dogNom = dogs.find((d) => d.id === forfait.dog_id)?.nom
   const isForfait = forfait.type === 'forfait'
-  const paye = (Number(forfait.montant_paiement_1) || 0) + (Number(forfait.montant_paiement_2) || 0)
+  const paye =
+    (Number(forfait.montant_paiement_1) || 0) +
+    (Number(forfait.montant_paiement_2) || 0) +
+    (Number(forfait.montant_paiement_3) || 0)
   const solde = paye >= Number(forfait.montant_total || 0) && Number(forfait.montant_total || 0) > 0
 
   async function setNbSeances(n) {
@@ -139,7 +142,7 @@ function ForfaitCard({ forfait, dogs, onChanged, onEdit, onDelete }) {
               (solde ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700')
             }
           >
-            {solde ? 'Soldé' : forfait.montant_paiement_2 != null || paye > 0 ? 'En attente (partiel)' : 'En attente'}
+            {solde ? 'Soldé' : paye > 0 ? 'En attente (partiel)' : 'En attente'}
           </span>
           <button onClick={onEdit} className="p-1 text-gray-400 hover:text-brand-dark" title="Modifier">
             <Pencil size={15} />
@@ -205,6 +208,12 @@ function ForfaitCard({ forfait, dogs, onChanged, onEdit, onDelete }) {
             {forfait.date_paiement_2 ? ` le ${new Date(forfait.date_paiement_2).toLocaleDateString('fr-FR')}` : ''}
           </span>
         )}
+        {forfait.montant_paiement_3 != null && (
+          <span>
+            3e versement : {Number(forfait.montant_paiement_3).toFixed(2)} €
+            {forfait.date_paiement_3 ? ` le ${new Date(forfait.date_paiement_3).toLocaleDateString('fr-FR')}` : ''}
+          </span>
+        )}
       </div>
     </div>
   )
@@ -221,6 +230,8 @@ function ForfaitForm({ clientId, dogs, forfait, onCancel, onSaved }) {
   const [date1, setDate1] = useState(forfait?.date_paiement_1 || (() => new Date().toISOString().slice(0, 10))())
   const [montant2, setMontant2] = useState(forfait?.montant_paiement_2 ?? '')
   const [date2, setDate2] = useState(forfait?.date_paiement_2 || '')
+  const [montant3, setMontant3] = useState(forfait?.montant_paiement_3 ?? '')
+  const [date3, setDate3] = useState(forfait?.date_paiement_3 || '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -249,8 +260,10 @@ function ForfaitForm({ clientId, dogs, forfait, onCancel, onSaved }) {
       mode_paiement: modePaiement,
       montant_paiement_1: montant1 !== '' ? Number(montant1) : (modePaiement === '1fois' ? montantTotal : null),
       date_paiement_1: date1 || null,
-      montant_paiement_2: modePaiement === '2fois' && montant2 !== '' ? Number(montant2) : null,
-      date_paiement_2: modePaiement === '2fois' ? date2 || null : null,
+      montant_paiement_2: (modePaiement === '2fois' || modePaiement === '3fois') && montant2 !== '' ? Number(montant2) : null,
+      date_paiement_2: (modePaiement === '2fois' || modePaiement === '3fois') ? date2 || null : null,
+      montant_paiement_3: modePaiement === '3fois' && montant3 !== '' ? Number(montant3) : null,
+      date_paiement_3: modePaiement === '3fois' ? date3 || null : null,
     }
 
     try {
@@ -329,11 +342,12 @@ function ForfaitForm({ clientId, dogs, forfait, onCancel, onSaved }) {
         <Select value={modePaiement} onChange={(e) => setModePaiement(e.target.value)}>
           <option value="1fois">En une fois</option>
           <option value="2fois">En 2 fois</option>
+          <option value="3fois">En 3 fois</option>
         </Select>
       </Field>
 
       <div className="grid grid-cols-2 gap-3">
-        <Field label={modePaiement === '2fois' ? '1er versement (€)' : 'Montant réglé (€)'}>
+        <Field label={modePaiement === '1fois' ? 'Montant réglé (€)' : '1er versement (€)'}>
           <TextInput
             type="number"
             min="0"
@@ -348,13 +362,24 @@ function ForfaitForm({ clientId, dogs, forfait, onCancel, onSaved }) {
         </Field>
       </div>
 
-      {modePaiement === '2fois' && (
+      {(modePaiement === '2fois' || modePaiement === '3fois') && (
         <div className="grid grid-cols-2 gap-3">
           <Field label="2e versement (€)">
             <TextInput type="number" min="0" step="0.01" value={montant2} onChange={(e) => setMontant2(e.target.value)} />
           </Field>
           <Field label="Date (si déjà reçu)">
             <TextInput type="date" value={date2} onChange={(e) => setDate2(e.target.value)} />
+          </Field>
+        </div>
+      )}
+
+      {modePaiement === '3fois' && (
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="3e versement (€)">
+            <TextInput type="number" min="0" step="0.01" value={montant3} onChange={(e) => setMontant3(e.target.value)} />
+          </Field>
+          <Field label="Date (si déjà reçu)">
+            <TextInput type="date" value={date3} onChange={(e) => setDate3(e.target.value)} />
           </Field>
         </div>
       )}

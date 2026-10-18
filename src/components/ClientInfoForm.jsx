@@ -10,7 +10,6 @@ const empty = {
   email: '',
   adresse: '',
   raison_venue: '',
-  objectifs: '',
   cours_collectifs: false,
   whatsapp_inscrit: false,
   notes_pratiques: '',
@@ -114,10 +113,6 @@ export default function ClientInfoForm({ client, isNew, onSaved, onDeleted }) {
 
       <Field label="Raison de la venue">
         <Textarea rows={2} value={form.raison_venue || ''} onChange={(e) => set('raison_venue', e.target.value)} />
-      </Field>
-
-      <Field label="Objectifs">
-        <Textarea rows={2} value={form.objectifs || ''} onChange={(e) => set('objectifs', e.target.value)} />
       </Field>
 
       <div className="bg-white rounded-xl p-4 flex flex-col gap-1">

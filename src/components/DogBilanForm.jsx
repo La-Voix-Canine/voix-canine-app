@@ -12,6 +12,19 @@ const SOCIABILITE_OPTIONS = [
   { value: 'autre', label: 'Autre' },
 ]
 
+function calcAge(dateNaissance) {
+  if (!dateNaissance) return ''
+  const birth = new Date(dateNaissance)
+  if (Number.isNaN(birth.getTime())) return ''
+  const now = new Date()
+  let months = (now.getFullYear() - birth.getFullYear()) * 12 + (now.getMonth() - birth.getMonth())
+  if (now.getDate() < birth.getDate()) months -= 1
+  if (months < 0) return ''
+  if (months < 24) return `${months} mois`
+  const years = Math.floor(months / 12)
+  return `${years} an${years > 1 ? 's' : ''}`
+}
+
 export default function DogBilanForm({ dog, onSaved, onDeleted }) {
   const [form, setForm] = useState(dog)
   const [saving, setSaving] = useState(false)
@@ -35,6 +48,7 @@ export default function DogBilanForm({ dog, onSaved, onDeleted }) {
           nom: form.nom,
           race: form.race,
           sexe: form.sexe || null,
+          castre: form.castre || null,
           date_naissance: form.date_naissance || null,
           age_arrivee_famille: form.age_arrivee_famille,
           type_logement: form.type_logement,
@@ -99,13 +113,25 @@ export default function DogBilanForm({ dog, onSaved, onDeleted }) {
         </Field>
       </div>
 
-      <Field label="Date de naissance">
-        <TextInput
-          type="date"
-          value={form.date_naissance || ''}
-          onChange={(e) => set('date_naissance', e.target.value)}
-        />
-      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Date de naissance">
+          <TextInput
+            type="date"
+            value={form.date_naissance || ''}
+            onChange={(e) => set('date_naissance', e.target.value)}
+          />
+          {form.date_naissance && (
+            <p className="text-xs text-gray-400 mt-1">{calcAge(form.date_naissance)}</p>
+          )}
+        </Field>
+        <Field label="Castré / Stérilisé">
+          <Select value={form.castre || ''} onChange={(e) => set('castre', e.target.value)}>
+            <option value="">—</option>
+            <option value="oui">Oui</option>
+            <option value="non">Non</option>
+          </Select>
+        </Field>
+      </div>
 
       <Field label="Depuis quel âge il est avec sa famille" hint="ex : depuis chiot (8 semaines), depuis 2 ans...">
         <TextInput
